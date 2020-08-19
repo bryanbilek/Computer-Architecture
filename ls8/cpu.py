@@ -6,6 +6,8 @@ LDI = 0b10000010
 PRN = 0b01000111
 HLT = 0b00000001
 MUL = 0b10100010
+PUSH = 0b01000101
+POP = 0b01000110
 
 
 class CPU:
@@ -16,26 +18,40 @@ class CPU:
         self.ram = [0] * 256
         self.reg = [0] * 8
         self.pc = 0
+        self.reg[7] = 0xF4
+        self.running = True
         self.branchtable = {}
         self.branchtable[LDI] = self.handle_LDI
         self.branchtable[PRN] = self.handle_PRN
         self.branchtable[HLT] = self.handle_HLT
         self.branchtable[MUL] = self.handle_MUL
+        self.branchtable[PUSH] = self.handle_PUSH
+        self.branchtable[POP] = self.handle_POP
 
     def handle_LDI(self, a, b):
         self.reg[a] = b
         self.pc += 3
 
-    def handle_PRN(self, a):
+    def handle_PRN(self, a, b):
         print(self.reg[a])
         self.pc += 2
 
-    def handle_HLT(self):
-        sys.exit()
+    def handle_HLT(self, a, b):
+        self.running = False
 
     def handle_MUL(self, a, b):
         self.reg[a] = self.reg[a] * self.reg[b]
         self.pc += 3
+    
+    def handle_PUSH(self, a, b):
+        self.reg[7] -= 1
+        self.ram_write(self.reg[7], self.reg[a])
+        self.pc += 2
+
+    def handle_POP(self, a, b):
+        self.reg[a] = self.ram_read(self.reg[7])
+        self.reg[7] += 1
+        self.pc += 2
 
     def load(self):
         """Load a program into memory."""
@@ -108,29 +124,34 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        running = True
-        while running:
+        while self.running:
             instruction = self.ram[self.pc]
             operand_a = self.ram[self.pc+1]
             operand_b = self.ram[self.pc+2]
 
-            if instruction == 0b00000001:  # HLT
-                running = False
+            # if instruction == 0b00000001:  # HLT
+            #     running = False
 
-            elif instruction == 0b10000010:  # LDI
-                self.ram_write(operand_a, operand_b)
-                self.pc += 2
+            # elif instruction == 0b10000010:  # LDI
+            #     self.ram_write(operand_a, operand_b)
+            #     self.pc += 2
 
-            elif instruction == 0b01000111:  # PRN
-                print(self.ram_read(operand_a))
-                self.pc += 1
+            # elif instruction == 0b01000111:  # PRN
+            #     print(self.ram_read(operand_a))
+            #     self.pc += 1
 
-            elif instruction == 0b10100010:  # MUL
-                self.ram_write(
-                    operand_a, (self.ram[operand_a] * self.ram[operand_b]))
-                self.pc += 2
+            # elif instruction == 0b10100010:  # MUL
+            #     self.ram_write(
+            #         operand_a, (self.ram[operand_a] * self.ram[operand_b]))
+            #     self.pc += 2
 
-            self.pc += 1
+            # self.pc += 1
+
+            try:
+                self.branchtable[instruction](operand_a, operand_b)
+
+            except:
+                raise Exception(f'unknown instruction {instruction} at address {self.pc}')
 
     def ram_read(self, mar):
         return self.ram[mar]
