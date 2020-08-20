@@ -8,6 +8,9 @@ HLT = 0b00000001
 MUL = 0b10100010
 PUSH = 0b01000101
 POP = 0b01000110
+CALL = 0b01010000
+RET = 0b00010001
+ADD = 0b10100000
 
 
 class CPU:
@@ -27,6 +30,9 @@ class CPU:
         self.branchtable[MUL] = self.handle_MUL
         self.branchtable[PUSH] = self.handle_PUSH
         self.branchtable[POP] = self.handle_POP
+        self.branchtable[CALL] = self.handle_CALL
+        self.branchtable[RET] = self.handle_RET
+        self.branchtable[ADD] = self.handle_ADD
 
     def handle_LDI(self, a, b):
         self.reg[a] = b
@@ -42,7 +48,7 @@ class CPU:
     def handle_MUL(self, a, b):
         self.reg[a] = self.reg[a] * self.reg[b]
         self.pc += 3
-    
+
     def handle_PUSH(self, a, b):
         self.reg[7] -= 1
         self.ram_write(self.reg[7], self.reg[a])
@@ -52,6 +58,19 @@ class CPU:
         self.reg[a] = self.ram_read(self.reg[7])
         self.reg[7] += 1
         self.pc += 2
+
+    def handle_CALL(self, a, b):
+        self.reg[7] -= 1
+        self.ram_write(self.reg[7], self.pc + 2)
+        self.pc = self.reg[a]
+
+    def handle_RET(self, a, b):
+        self.pc = self.ram_read(self.reg[7])
+        self.reg[7] += 1
+
+    def handle_ADD(self, a, b):
+        self.reg[a] = self.reg[a] + self.reg[b]
+        self.pc += 3
 
     def load(self):
         """Load a program into memory."""
@@ -151,7 +170,8 @@ class CPU:
                 self.branchtable[instruction](operand_a, operand_b)
 
             except:
-                raise Exception(f'unknown instruction {instruction} at address {self.pc}')
+                raise Exception(
+                    f'unknown instruction {instruction} at address {self.pc}')
 
     def ram_read(self, mar):
         return self.ram[mar]
