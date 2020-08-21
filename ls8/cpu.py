@@ -1,7 +1,7 @@
 """CPU functionality."""
 
 import sys
-
+# instructions/opcopdes
 LDI = 0b10000010
 PRN = 0b01000111
 HLT = 0b00000001
@@ -11,6 +11,11 @@ POP = 0b01000110
 CALL = 0b01010000
 RET = 0b00010001
 ADD = 0b10100000
+# sprint codes
+CMP = 0b10100111
+JMP = 0b01010100
+JEQ = 0b01010101
+JNE = 0b01010110
 
 
 class CPU:
@@ -18,11 +23,17 @@ class CPU:
 
     def __init__(self):
         """Construct a new CPU."""
+        # 256 bytes of memory
         self.ram = [0] * 256
+        # 8 general-purpose registers
         self.reg = [0] * 8
+        # program counter
         self.pc = 0
+        # stack pointer sets R7 to 0xF4
         self.reg[7] = 0xF4
+        # set the cpu to be running
         self.running = True
+        # set up a branch table filled with handler functions for the instructions/opcodes
         self.branchtable = {}
         self.branchtable[LDI] = self.handle_LDI
         self.branchtable[PRN] = self.handle_PRN
@@ -33,44 +44,111 @@ class CPU:
         self.branchtable[CALL] = self.handle_CALL
         self.branchtable[RET] = self.handle_RET
         self.branchtable[ADD] = self.handle_ADD
+        # sprint instructions/opcodes
+        self.branchtable[CMP] = self.handle_CMP
+        self.branchtable[JMP] = self.handle_JMP
+        self.branchtable[JEQ] = self.handle_JEQ
+        self.branchtable[JNE] = self.handle_JNE
+        # flag sets to 0
+        self.fl = 0b00000000
+
+    # function handlers for each instruction/opcode
+    # takes operand_a & operand_b as arguments
 
     def handle_LDI(self, a, b):
+        # set the value of register(a) to int(b)
+        # move on 3 places
         self.reg[a] = b
         self.pc += 3
 
     def handle_PRN(self, a, b):
+        # print value at stored register(a)
+        # move on 2 places
         print(self.reg[a])
         self.pc += 2
 
     def handle_HLT(self, a, b):
+        # halt running
         self.running = False
 
     def handle_MUL(self, a, b):
+        # multiply value at register(a) with value at register(b)
+        # move on 3 places
         self.reg[a] = self.reg[a] * self.reg[b]
         self.pc += 3
 
     def handle_PUSH(self, a, b):
+        # decrement the stack pointer
+        # get the value from the register & put it on the stack at the SP
+        # move on 2 places
         self.reg[7] -= 1
         self.ram_write(self.reg[7], self.reg[a])
         self.pc += 2
 
     def handle_POP(self, a, b):
-        self.reg[a] = self.ram_read(self.reg[7])
+        # add to the stack pointer
+        # get the value from the stack pointed to by the SP & set to register(a)
+        # move on 2 places
         self.reg[7] += 1
+        self.reg[a] = self.ram_read(self.reg[7])
         self.pc += 2
 
     def handle_CALL(self, a, b):
+        # push the ret address to the stack
+        # set the counter to the subroutines address
         self.reg[7] -= 1
         self.ram_write(self.reg[7], self.pc + 2)
         self.pc = self.reg[a]
 
     def handle_RET(self, a, b):
+        # pop the ret address from the stack to store in the counter
         self.pc = self.ram_read(self.reg[7])
         self.reg[7] += 1
 
     def handle_ADD(self, a, b):
+        # add the value from register a to value at register b
+        # move on 3 places
         self.reg[a] = self.reg[a] + self.reg[b]
         self.pc += 3
+
+    # sprint handle functions
+    # might have to add 2 or 3 to the self.pc
+    def handle_CMP(self, a, b):
+        # FL bits: 00000LGE
+        # compare a & b registers
+        # if equal, set the flag to 1
+        if self.reg[a] == self.reg[b]:
+            self.fl = 0b00000001
+        
+        # if reg a < reg b, set 'L' to 1
+        if self.reg[a] < self.reg[b]:
+            self.fl = 0b00000100
+        
+        # if reg a > reg b, set 'G' to 1
+        if self.reg[a] > self.reg[b]:
+            self.fl = 0b00000010
+        # add to the counter 3 lines to move on           
+        self.pc += 3
+
+    def handle_JMP(self, a, b):
+        # jump to the address stored in the given register (a)
+        self.pc = self.reg[a]
+
+    def handle_JEQ(self, a, b):
+        # if the flag is equal (1), jump to the address stored in the given register (a)
+        if self.fl & 0b00000001:
+            self.pc = self.reg[a]
+        else:
+            # otherwise add 2 to the counter to carry on down
+            self.pc += 2
+
+    def handle_JNE(self, a, b):
+        # if E flag equals 0, jump to the address stored in the given register(a)
+        if (self.fl & 0b00000001) == 0:
+            self.pc = self.reg[a]
+        else:
+            # else add 2 to the counter & carry on
+            self.pc += 2
 
     def load(self):
         """Load a program into memory."""
@@ -92,17 +170,23 @@ class CPU:
         # for instruction in program:
         #     self.ram[address] = instruction
         #     address += 1
-
+        
+        # address in the file to start at
         address = 0
+        # for the second arg in the file 
         filename = sys.argv[1]
-
         if filename:
+            # open the file
             with open(filename) as f:
                 for line in f:
+                    # split the lines at the '#' char
                     line = line.split('#')
+                    # if nothing there, carry on
                     if line[0] == '':
                         continue
 
+                    # get the line's binary code at each address
+                    # add 1 to the address to move on
                     self.ram[address] = int(line[0], 2)
                     address += 1
 
@@ -143,8 +227,11 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
+        # while the cpu is running
         while self.running:
+            # stores the instruction
             instruction = self.ram[self.pc]
+            # stores the bytes at pc+1 & pc+2
             operand_a = self.ram[self.pc+1]
             operand_b = self.ram[self.pc+2]
 
@@ -167,16 +254,22 @@ class CPU:
             # self.pc += 1
 
             try:
+                # try the instruction/opcode using operand_a & operand_b
                 self.branchtable[instruction](operand_a, operand_b)
 
             except:
+                # if there's an exception, print the unknown instruction at the address
                 raise Exception(
                     f'unknown instruction {instruction} at address {self.pc}')
 
+    # mar = memory address register
+    # mdr = memory data register
     def ram_read(self, mar):
+        # accepts the address to read & returns the value stored there
         return self.ram[mar]
 
     def ram_write(self, mar, mdr):
+        # accepts a value to write & the address to write it to
         self.ram[mar] = mdr
 
 
